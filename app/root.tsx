@@ -5,11 +5,17 @@ import {
   Scripts,
   ScrollRestoration,
 } from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
+import type { LinksFunction, LoaderFunction } from "@remix-run/node";
 import Header from "./components/layout/header";
 import Content from "./components/layout/content";
 
 import styles from "./tailwind.css?url";
+
+import { rootAuthLoader } from "@clerk/remix/ssr.server";
+import { ClerkApp } from "@clerk/remix";
+
+// Export as the root route loader
+export const loader: LoaderFunction = (args) => rootAuthLoader(args);
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -35,8 +41,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body className="h-full">
-        <Header />
-        <Content>{children}</Content>
+        {children}
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -44,6 +49,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
-  return <Outlet />;
+function App() {
+  return (
+    <div>
+      <Header />
+      <Content>
+        <Outlet />
+      </Content>
+    </div>
+  );
 }
+
+export default ClerkApp(App);

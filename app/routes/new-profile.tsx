@@ -1,10 +1,12 @@
-import type { MetaFunction } from "@remix-run/node";
+import type { ActionFunctionArgs, MetaFunction } from "@remix-run/node";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
-import { Form } from "@remix-run/react";
+import { Form, json } from "@remix-run/react";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { useRef, useState } from "react";
+import S3 from "~/lib/s3";
+import prisma from "~/lib/prisma";
 
 import {
   Card,
@@ -14,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import { getAuth } from "@clerk/remix/ssr.server";
 
 export const meta: MetaFunction = () => {
   return [
@@ -94,14 +97,6 @@ export default function Index() {
           onSubmit={handleSubmit}
         >
           <Input type="text" name="name" placeholder="Dog Name" required />
-          <Input type="text" name="owner" placeholder="Owner Name" required />
-          <Input
-            type="tel"
-            name="phone"
-            placeholder="Owner Phone Number"
-            required
-          />
-
           <div className="flex w-full items-center space-x-2">
             <Input
               type="text"
@@ -138,4 +133,35 @@ export default function Index() {
       </div>
     </div>
   );
+}
+export async function action(args: ActionFunctionArgs) {
+  const { request } = args;
+  const { userId } = await getAuth(args);
+  if (!userId) {
+    return json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const data = await request.formData();
+  const picture = data.get("picture") as File;
+  const allergies = data.get("allergies") as string;
+  const key = await S3.upload(picture);
+
+  const dog = await prisma.dog.create({
+    data: {
+      name: data.get("name") as string,
+      ownerId: userId,
+      imageUrl: key,
+    },
+  });
+
+  for (const allergy of allergies.split(",")) {
+    await prisma.allergy.create({
+      data: {
+        allergy: allergy,
+        dogId: dog.id,
+      },
+    });
+  }
+
+  return json({ success: true });
 }
